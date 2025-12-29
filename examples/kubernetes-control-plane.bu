@@ -1,0 +1,100 @@
+variant: fcos
+version: 1.6.0
+passwd:
+  users:
+    - name: core
+      password_hash: "$6$pBtiDulPBTRNjxkB$GNWztgj4Ib42fnmUdW7cxUDfk9eH7RdDparNdlm0bAKimHsJN0t4wSriYLKiymME35sbei.O3UrTkSTmyt/rj0"
+      ssh_authorized_keys:
+        - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGnKNJUQdGdd8jwuOoI/BHjCvxn0GEctbgVqOPn6GAzo c4rt0gr4ph3r@gmail.com
+      groups:
+        - wheel
+    - name: fcos-user
+      # Password: coreos
+      password_hash: "$6$pBtiDulPBTRNjxkB$GNWztgj4Ib42fnmUdW7cxUDfk9eH7RdDparNdlm0bAKimHsJN0t4wSriYLKiymME35sbei.O3UrTkSTmyt/rj0"
+      groups:
+        - wheel
+
+storage:
+  files:
+    - path: /etc/hostname
+      mode: 0644
+      contents:
+        inline: k3s-control-plane
+    
+    # k3s installation script
+    - path: /usr/local/bin/install-k3s.sh
+      mode: 0755
+      contents:
+        inline: |
+          #!/bin/bash
+          set -e
+          echo "Installing k3s control plane..."
+          
+          # Set up environment
+          export INSTALL_K3S_EXEC="server --disable=traefik --disable=servicelb"
+          export K3S_TOKEN="proxmox-k3s-default-token"
+          
+          # Download and install k3s
+          curl -sfL https://get.k3s.io | sh -
+          
+          echo "k3s control plane installed successfully"
+          echo "Wait for k3s to be ready and then join worker nodes"
+
+systemd:
+  units:
+    # Enable IP forwarding for Kubernetes networking
+    - name: k3s-network-setup.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Setup networking for Kubernetes
+        Before=k3s.service
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/sbin/sysctl -w net.ipv4.ip_forward=1
+        ExecStart=/usr/sbin/sysctl -w net.ipv4.conf.all.forwarding=1
+        RemainAfterExit=yes
+
+        [Install]
+        WantedBy=multi-user.target
+
+    # k3s control plane installation
+    - name: k3s-install.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Install k3s control plane
+        After=network-online.target
+        Wants=network-online.target
+        Before=k3s.service
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/local/bin/install-k3s.sh
+        RemainAfterExit=yes
+        StandardOutput=journal
+        StandardError=journal
+
+        [Install]
+        WantedBy=multi-user.target
+
+    # Ensure k3s service is running
+    - name: k3s.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=k3s Kubernetes Control Plane
+        After=network-online.target k3s-install.service
+        Wants=network-online.target
+
+        [Service]
+        Type=notify
+        ExecStart=/usr/local/bin/k3s server --disable=traefik --disable=servicelb
+        Restart=always
+        RestartSec=5
+        StandardOutput=journal
+        StandardError=journal
+
+        [Install]
+        WantedBy=multi-user.target

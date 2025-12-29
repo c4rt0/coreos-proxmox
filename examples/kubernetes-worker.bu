@@ -1,0 +1,92 @@
+variant: fcos
+version: 1.6.0
+passwd:
+  users:
+    - name: core
+      password_hash: "$6$pBtiDulPBTRNjxkB$GNWztgj4Ib42fnmUdW7cxUDfk9eH7RdDparNdlm0bAKimHsJN0t4wSriYLKiymME35sbei.O3UrTkSTmyt/rj0"
+      ssh_authorized_keys:
+        - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGnKNJUQdGdd8jwuOoI/BHjCvxn0GEctbgVqOPn6GAzo c4rt0gr4ph3r@gmail.com
+      groups:
+        - wheel
+    - name: fcos-user
+      # Password: coreos
+      password_hash: "$6$pBtiDulPBTRNjxkB$GNWztgj4Ib42fnmUdW7cxUDfk9eH7RdDparNdlm0bAKimHsJN0t4wSriYLKiymME35sbei.O3UrTkSTmyt/rj0"
+      groups:
+        - wheel
+
+storage:
+  files:
+    - path: /etc/hostname
+      mode: 0644
+      contents:
+        inline: k3s-worker
+    
+    # k3s worker installation script
+    - path: /usr/local/bin/install-k3s-worker.sh
+      mode: 0755
+      contents:
+        inline: |
+          #!/bin/bash
+          set -e
+          echo "Installing k3s worker node..."
+          echo "You must provide the K3S_URL and K3S_TOKEN from the control plane"
+          echo ""
+          echo "Example:"
+          echo "export K3S_URL=https://192.168.1.100:6443"
+          echo "export K3S_TOKEN=<token-from-control-plane>"
+          echo "/usr/local/bin/install-k3s-worker.sh"
+          echo ""
+          
+          if [ -z "$K3S_URL" ] || [ -z "$K3S_TOKEN" ]; then
+            echo "Error: K3S_URL and K3S_TOKEN environment variables must be set"
+            exit 1
+          fi
+          
+          export INSTALL_K3S_EXEC="agent"
+          
+          # Download and install k3s
+          curl -sfL https://get.k3s.io | sh -
+          
+          echo "k3s worker node installed successfully"
+          echo "Node will join the cluster once k3s starts"
+
+systemd:
+  units:
+    # Enable IP forwarding for Kubernetes networking
+    - name: k3s-network-setup.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Setup networking for Kubernetes
+        Before=k3s-agent.service
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/sbin/sysctl -w net.ipv4.ip_forward=1
+        ExecStart=/usr/sbin/sysctl -w net.ipv4.conf.all.forwarding=1
+        RemainAfterExit=yes
+
+        [Install]
+        WantedBy=multi-user.target
+
+    # k3s worker agent
+    - name: k3s-agent.service
+      enabled: false
+      contents: |
+        [Unit]
+        Description=k3s Kubernetes Worker Agent
+        After=network-online.target
+        Wants=network-online.target
+
+        [Service]
+        Type=notify
+        ExecStart=/usr/local/bin/k3s agent
+        Restart=always
+        RestartSec=5
+        StandardOutput=journal
+        StandardError=journal
+        Environment="K3S_URL=${K3S_URL}"
+        Environment="K3S_TOKEN=${K3S_TOKEN}"
+
+        [Install]
+        WantedBy=multi-user.target
