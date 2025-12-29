@@ -23,9 +23,16 @@ Containerized web server and reverse proxy configuration.
 - Custom configuration examples
 - SSL/TLS setup guide
 
-### [PostgreSQL](./postgresql/) (Coming Soon)
+### [PostgreSQL](./postgresql/)
 
-Relational database configuration.
+Containerized relational database server with persistent storage.
+
+- PostgreSQL server via Podman
+- Persistent data storage and recovery
+- Automatic user and database initialization
+- Health checks and container management
+- Performance tuning parameters
+- Backup and restore procedures
 
 ### [Docker Compose](./docker-compose/) (Coming Soon)
 

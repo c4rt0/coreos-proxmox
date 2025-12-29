@@ -1,0 +1,143 @@
+variant: fcos
+version: 1.4.0
+
+metadata:
+  label: postgresql-database
+
+passwd:
+  users:
+    - name: core
+      password_hash: $y$j9T$I1ixbmfv7.FfGXxzMVpuC0$wJhJ7ynqKt5LWsJKbWJb9TJLz0x7oNOeZXS8YYOeD.
+      home_dir: /var/home/core
+      shell: /bin/bash
+      groups:
+        - wheel
+        - docker
+      ssh_authorized_keys:
+        - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI2W3n+WsKUqvPQNtgqhxBj3BfOaKALh2JZ8P0KVn4P0k
+    - name: fcos-user
+      password_hash: $6$pBtiDulPBTRNjxkB$GNWztgj4Ib42fnmUdW7cxUDfk9eH7RdDparNdlm0bAKimHsJN0t4wSriYLKiymME35sbei.O3UrTkSTmyt/rj0
+      home_dir: /var/home/fcos-user
+      shell: /bin/bash
+      groups:
+        - wheel
+        - docker
+
+hostname: fcos-postgresql
+
+systemd:
+  units:
+    - name: postgresql-container.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=PostgreSQL Database Server Container
+        After=network-online.target
+        Wants=network-online.target
+
+        [Service]
+        Type=notify
+        NotifyAccess=main
+        Restart=always
+        RestartSec=10
+
+        # Pull latest PostgreSQL image (adjust version as needed)
+        ExecStartPre=/usr/bin/podman pull docker.io/library/postgres:latest
+
+        # Create persistent storage directory
+        ExecStartPre=/bin/bash -c 'mkdir -p /var/lib/postgresql/data && chown 999:999 /var/lib/postgresql/data && chmod 700 /var/lib/postgresql/data'
+
+        # Create socket directory for local connections
+        ExecStartPre=/bin/bash -c 'mkdir -p /var/run/postgresql && chown 999:999 /var/run/postgresql && chmod 700 /var/run/postgresql'
+
+        # Start PostgreSQL container
+        # Environment variables:
+        # - POSTGRES_PASSWORD: superuser password
+        # - POSTGRES_INITDB_ARGS: additional initdb arguments
+        # Port 5432: Standard PostgreSQL port
+        # Volumes:
+        # - /var/lib/postgresql/data: Database data storage (persistent)
+        # - /var/run/postgresql: Unix socket directory (local connections)
+        ExecStart=/usr/bin/podman run \
+          --name postgresql-server \
+          --rm \
+          -e POSTGRES_PASSWORD=postgres_secure_password_change_me \
+          -e POSTGRES_INITDB_ARGS=-c shared_buffers=256MB -c max_connections=200 \
+          -v /var/lib/postgresql/data:/var/lib/postgresql/data:z \
+          -v /var/run/postgresql:/var/run/postgresql:z \
+          -p 5432:5432 \
+          --health-cmd='pg_isready -U postgres' \
+          --health-interval=10s \
+          --health-timeout=5s \
+          --health-retries=5 \
+          docker.io/library/postgres:latest
+
+        ExecStop=/usr/bin/podman stop -t 30 postgresql-server
+
+        [Install]
+        WantedBy=multi-user.target
+
+    - name: postgresql-init.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Initialize PostgreSQL databases and users
+        After=postgresql-container.service
+        ConditionPathExists=!/var/lib/postgresql/data/initialized
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+
+        # Wait for PostgreSQL to be ready
+        ExecStartPre=/bin/bash -c 'for i in {1..30}; do podman exec postgresql-server pg_isready -U postgres && break; sleep 1; done'
+
+        # Create application user and database
+        ExecStart=/bin/bash -c '\
+          podman exec postgresql-server psql -U postgres -c "CREATE USER app_user WITH PASSWORD '\''app_password_change_me'\''; CREATE DATABASE app_db OWNER app_user;" || true; \
+          touch /var/lib/postgresql/data/initialized
+        '
+
+        [Install]
+        WantedBy=multi-user.target
+
+storage:
+  files:
+    - path: /etc/motd
+      mode: 0644
+      contents:
+        inline: |
+          Welcome to Fedora CoreOS with PostgreSQL
+
+          PostgreSQL container is configured and running.
+          
+          Connection details:
+          - Host: localhost (or VM IP for remote connections)
+          - Port: 5432
+          - Superuser: postgres (password set in container)
+          - Default database: postgres
+          
+          Persistent data location: /var/lib/postgresql/data/
+          Socket directory: /var/run/postgresql/
+
+    - path: /root/.pgpass
+      mode: 0600
+      contents:
+        inline: |
+          localhost:5432:*:postgres:postgres_secure_password_change_me
+
+    - path: /etc/profile.d/postgresql-info.sh
+      mode: 0644
+      contents:
+        inline: |
+          alias pg-shell='podman exec -it postgresql-server psql -U postgres'
+          alias pg-status='podman ps --filter name=postgresql-server --format "table {{.Status}}"'
+          alias pg-logs='podman logs -f postgresql-server'
+          
+          echo "PostgreSQL Database Info:"
+          echo "- Container status: \$(podman ps --filter name=postgresql-server --format '{{.Status}}')"
+          echo "- Data directory: /var/lib/postgresql/data"
+          echo "- Quick commands:"
+          echo "  pg-shell      - Connect to PostgreSQL CLI"
+          echo "  pg-status     - Check container status"
+          echo "  pg-logs       - Follow container logs"
