@@ -1,198 +1,80 @@
-# Kubernetes Example Ignition Configurations
+# Example Ignition Configurations
 
-This directory contains example Ignition (Butane) configurations for setting up Kubernetes clusters on Fedora CoreOS VMs via Proxmox.
+This directory contains example Ignition (Butane) configurations for various tools and services running on Fedora CoreOS VMs via Proxmox.
 
-## Kubernetes with k3s
+## Available Examples
 
-k3s is a lightweight, production-grade Kubernetes distribution that runs perfectly on Fedora CoreOS.
+### [Kubernetes with k3s](./kubernetes/)
 
-### Files
+Lightweight, production-grade Kubernetes cluster setup with control plane and worker nodes.
 
-- **`kubernetes-control-plane.bu`** - Control plane/master node configuration
-- **`kubernetes-worker.bu`** - Worker node configuration
+- Control plane configuration
+- Worker node configuration  
+- Token-based cluster joining
+- Full deployment guide
 
-### Architecture
+### [nginx](./nginx/) (Coming Soon)
 
-```
-Control Plane (k3s server)
-        ↓ (kubeconfig + token)
-    ↓       ↓       ↓
-Worker1  Worker2  Worker3 (k3s agents)
-```
+Web server and reverse proxy configuration.
 
-### Prerequisites
+### [PostgreSQL](./postgresql/) (Coming Soon)
 
-- Proxmox VE host with setup-coreos.sh script
-- At least 2GB RAM per VM (4GB+ recommended)
-- Network connectivity between nodes
-- SSH access configured
+Relational database configuration.
 
-### Quick Start
+### [Docker Compose](./docker-compose/) (Coming Soon)
 
-#### 1. Deploy Control Plane Node
+Multi-container application orchestration.
 
-Use the setup script with the control plane configuration:
+## General Usage
 
-```bash
-# Copy the control plane config to the standard location
-cp examples/kubernetes-control-plane.bu ignition/ignition.bu
+Each example includes:
+- Butane configuration files (`.bu`)
+- README with detailed setup instructions
+- Pre-configured users and SSH access
+- Systemd service definitions
 
-# Run the setup script
-./setup-coreos.sh
-```
+### Basic Workflow
 
-The control plane will:
-- Auto-install k3s server
-- Enable IP forwarding
-- Start the Kubernetes API server
-- Generate a token for worker nodes to join
+1. Choose an example directory
+2. Copy the appropriate `.bu` file:
+   ```bash
+   cp examples/<service>/<config>.bu ignition/ignition.bu
+   ```
+3. Run the setup script:
+   ```bash
+   ./setup-coreos.sh
+   ```
+4. Follow the example's README for service-specific configuration
 
-#### 2. Get Control Plane Token
+## Customization
 
-Once the control plane VM boots and k3s is running:
+Each example can be customized by editing:
+- Hostnames
+- Users and passwords
+- Service ports
+- Resource limits
+- Network configuration
 
-```bash
-ssh core@<control-plane-ip>
-sudo /usr/local/bin/k3s kubectl get secret -n kube-system bootstrap-token-<token-id> -o json | jq '.data.token_secret' | base64 -d
-```
+See individual example READMEs for customization details.
 
-Or check the k3s logs:
-```bash
-journalctl -u k3s.service -f
-```
+## Security Notes
 
-#### 3. Deploy Worker Nodes
+- All examples use demo credentials - change them for production
+- SSH keys should be updated to your own
+- Firewall rules should be configured per your network policy
+- Tokens and secrets should be stored securely
 
-For each worker node:
+## Contributing
 
-```bash
-# Copy worker configuration
-cp examples/kubernetes-worker.bu ignition/ignition.bu
+Feel free to add new examples! Create:
+1. A new directory: `examples/<service>/`
+2. Butane configuration files
+3. README with setup and customization guide
+4. Commit and submit PR
 
-# Run setup script
-./setup-coreos.sh
-```
+## Resources
 
-Then configure the worker to join the cluster:
-
-```bash
-ssh core@<worker-ip>
-export K3S_URL=https://<control-plane-ip>:6443
-export K3S_TOKEN=<token-from-control-plane>
-sudo /usr/local/bin/install-k3s-worker.sh
-```
-
-#### 4. Verify Cluster
-
-From the control plane:
-
-```bash
-sudo /usr/local/bin/k3s kubectl get nodes
-sudo /usr/local/bin/k3s kubectl get pods -A
-```
-
-### Configuration Details
-
-#### Control Plane (`kubernetes-control-plane.bu`)
-
-- **Hostname**: `k3s-control-plane`
-- **Services**:
-  - `k3s-network-setup.service` - Enables IP forwarding
-  - `k3s-install.service` - Downloads and installs k3s
-  - `k3s.service` - Runs the control plane server
-- **Disabled Features**: Traefik (ingress controller), ServiceLB
-
-#### Worker Node (`kubernetes-worker.bu`)
-
-- **Hostname**: `k3s-worker`
-- **Services**:
-  - `k3s-network-setup.service` - Enables IP forwarding
-  - `k3s-agent.service` - Worker agent (disabled by default, enable after joining)
-- **Environment Variables**: `K3S_URL`, `K3S_TOKEN`
-
-### Customization
-
-#### Change Hostname
-
-Edit the ignition files and modify:
-```yaml
-storage:
-  files:
-    - path: /etc/hostname
-      mode: 0644
-      contents:
-        inline: your-custom-hostname
-```
-
-#### Change k3s Flags
-
-Edit the systemd unit in the ignition file:
-```yaml
-ExecStart=/usr/local/bin/k3s server --disable=traefik --disable=servicelb --your-flag=value
-```
-
-#### Add Custom Users
-
-Add more users to the `passwd.users` section:
-```yaml
-passwd:
-  users:
-    - name: myuser
-      password_hash: "..."
-      groups:
-        - wheel
-```
-
-### Troubleshooting
-
-#### k3s not starting
-
-Check systemd logs:
-```bash
-journalctl -u k3s.service -n 100 -e
-```
-
-#### Worker nodes not joining
-
-Verify network connectivity:
-```bash
-ping <control-plane-ip>
-```
-
-Check worker logs:
-```bash
-journalctl -u k3s-agent.service -n 100 -e
-```
-
-Verify token is correct and not expired.
-
-#### Disk space issues
-
-k3s stores data in `/var/lib/rancher/k3s/`. Monitor with:
-```bash
-df -h
-```
-
-### Security Considerations
-
-⚠️ **Warning**: The default token `proxmox-k3s-default-token` in the control plane config is for demonstration only. For production:
-
-1. Generate a secure token
-2. Store it securely (preferably in a secrets vault)
-3. Rotate tokens regularly
-4. Restrict SSH access
-5. Use firewall rules between nodes
-
-### Next Steps
-
-- Install ingress controller (nginx)
-- Set up persistent storage (Ceph, NFS, etc.)
-- Deploy monitoring (Prometheus, Grafana)
-- Set up GitOps (ArgoCD, Flux)
-- Configure network policies
-
-### Resources
-
-- [k3s Documentation](https://docs.k3s.io/)
-- [Kubernetes Documentation](https://kubernetes.io/docs/)
+- [Butane Documentation](https://coreos.github.io/butane/)
 - [Fedora CoreOS Documentation](https://docs.fedoraproject.org/en-US/fedora-coreos/)
+- [systemd Documentation](https://www.freedesktop.org/software/systemd/man/)
+
