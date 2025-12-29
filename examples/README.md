@@ -13,9 +13,15 @@ Lightweight, production-grade Kubernetes cluster setup with control plane and wo
 - Token-based cluster joining
 - Full deployment guide
 
-### [nginx](./nginx/) (Coming Soon)
+### [nginx](./nginx/)
 
-Web server and reverse proxy configuration.
+Containerized web server and reverse proxy configuration.
+
+- nginx container via Podman
+- Automatic startup and restart
+- HTTP/HTTPS support
+- Custom configuration examples
+- SSL/TLS setup guide
 
 ### [PostgreSQL](./postgresql/) (Coming Soon)
 

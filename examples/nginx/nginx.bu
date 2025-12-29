@@ -1,0 +1,150 @@
+variant: fcos
+version: 1.4.0
+
+metadata:
+  label: nginx-webserver
+
+passwd:
+  users:
+    - name: core
+      password_hash: $y$j9T$I1ixbmfv7.FfGXxzMVpuC0$wJhJ7ynqKt5LWsJKbWJb9TJLz0x7oNOeZXS8YYOeD.
+      home_dir: /var/home/core
+      shell: /bin/bash
+      groups:
+        - wheel
+        - docker
+      ssh_authorized_keys:
+        - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI2W3n+WsKUqvPQNtgqhxBj3BfOaKALh2JZ8P0KVn4P0k
+    - name: fcos-user
+      password_hash: $6$pBtiDulPBTRNjxkB$GNWztgj4Ib42fnmUdW7cxUDfk9eH7RdDparNdlm0bAKimHsJN0t4wSriYLKiymME35sbei.O3UrTkSTmyt/rj0
+      home_dir: /var/home/fcos-user
+      shell: /bin/bash
+      groups:
+        - wheel
+        - docker
+
+hostname: fcos-nginx
+
+systemd:
+  units:
+    - name: nginx-container.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=nginx Web Server Container
+        After=network-online.target
+        Wants=network-online.target
+
+        [Service]
+        Type=notify
+        NotifyAccess=main
+        Restart=always
+        RestartSec=10
+
+        # Pull latest nginx image
+        ExecStartPre=/usr/bin/podman pull docker.io/library/nginx:latest
+
+        # Create persistent storage directories
+        ExecStartPre=/bin/bash -c 'mkdir -p /var/www/html /etc/nginx/conf.d'
+
+        # Start nginx container with port mapping and volume mounts
+        # HTTP (80) and HTTPS (443) mapped to host
+        # /var/www/html for website content
+        # /etc/nginx/conf.d for custom configurations
+        ExecStart=/usr/bin/podman run \
+          --name nginx-server \
+          --network host \
+          -v /var/www/html:/usr/share/nginx/html:ro \
+          -v /etc/nginx/conf.d:/etc/nginx/conf.d:ro \
+          -p 80:80 \
+          -p 443:443 \
+          docker.io/library/nginx:latest
+
+        ExecStop=/usr/bin/podman stop -t 10 nginx-server
+        ExecStopPost=/usr/bin/podman rm -f nginx-server
+
+        [Install]
+        WantedBy=multi-user.target
+
+    - name: nginx-config-setup.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Setup nginx default content
+        Before=nginx-container.service
+        ConditionPathExists=!/var/www/html/index.html
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/bin/bash -c '\
+          mkdir -p /var/www/html; \
+          cat > /var/www/html/index.html << EOF
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Welcome to nginx</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        p {
+            color: #666;
+            text-align: center;
+            font-size: 18px;
+        }
+        .info {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            max-width: 600px;
+            margin: 20px auto;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <h1>nginx Web Server</h1>
+    <div class="info">
+        <p>Your nginx web server is running successfully on Fedora CoreOS!</p>
+        <p>To add your own content, place your HTML files in <code>/var/www/html/</code></p>
+    </div>
+</body>
+</html>
+EOF
+        '
+
+        [Install]
+        WantedBy=multi-user.target
+
+storage:
+  files:
+    - path: /etc/motd
+      mode: 0644
+      contents:
+        inline: |
+          Welcome to Fedora CoreOS with nginx
+
+          nginx container is configured and running.
+          
+          Access your web server at:
+          - HTTP: http://<hostname-or-ip>:80
+          - HTTPS: https://<hostname-or-ip>:443 (if configured)
+          
+          Website content location: /var/www/html/
+          nginx config location: /etc/nginx/conf.d/
+
+    - path: /etc/profile.d/nginx-info.sh
+      mode: 0644
+      contents:
+        inline: |
+          echo "nginx Web Server Info:"
+          echo "- Container status: \$(podman ps --filter name=nginx-server --format '{{.Status}}')"
+          echo "- Configuration directory: /etc/nginx/conf.d"
+          echo "- Website root: /var/www/html"
