@@ -142,6 +142,24 @@ Change the initial `VMID` value in the script (default is 420).
 - Verify the Fedora CoreOS build server is accessible
 - Try manually downloading from: https://builds.coreos.fedoraproject.org/
 
+## Cleaning Up VMs
+
+To remove a CoreOS VM:
+
+```bash
+qm stop <VMID> && qm destroy <VMID> --purge
+```
+
+Example to remove VM 420:
+```bash
+qm stop 420 && qm destroy 420 --purge
+```
+
+To list all CoreOS VMs:
+```bash
+qm list | grep fcos
+```
+
 ## License
 
 This project is provided as-is for educational and automation purposes.
