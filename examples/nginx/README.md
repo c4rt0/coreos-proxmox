@@ -50,13 +50,24 @@ Once the VM is running:
 # SSH to the VM
 ssh -i ~/.ssh/id_ed25519 core@<vm-ip>
 
-# Check nginx status
-podman ps --filter name=nginx-server
+# Check nginx service status (it's a containerized service, not a native package)
+systemctl status nginx-container.service
+
+# Check the Podman container
+podman ps
 podman logs nginx-server
 
 # Access web server
 curl http://<vm-ip>:80
 ```
+
+**Important Note:** nginx runs as a **Podman container**, not as a native RPM package. Therefore:
+- Use `systemctl status nginx-container.service` (not `nginx.service`)
+- Use `podman ps` to see the running container
+- Don't use `rpm -q nginx` (package is not installed)
+- Don't use `systemctl status nginx` (wrong service name)
+
+The service is called `nginx-container.service` because it manages nginx inside a container.
 
 ## Default Credentials
 
