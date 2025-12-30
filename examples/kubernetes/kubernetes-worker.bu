@@ -3,7 +3,6 @@ version: 1.6.0
 passwd:
   users:
     - name: core
-      password_hash: "$6$pBtiDulPBTRNjxkB$GNWztgj4Ib42fnmUdW7cxUDfk9eH7RdDparNdlm0bAKimHsJN0t4wSriYLKiymME35sbei.O3UrTkSTmyt/rj0"
       ssh_authorized_keys:
         - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGnKNJUQdGdd8jwuOoI/BHjCvxn0GEctbgVqOPn6GAzo c4rt0gr4ph3r@gmail.com
       groups:

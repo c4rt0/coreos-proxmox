@@ -1,5 +1,5 @@
 variant: fcos
-version: 1.4.0
+version: 1.6.0
 
 metadata:
   label: postgresql-database
@@ -7,14 +7,13 @@ metadata:
 passwd:
   users:
     - name: core
-      password_hash: $y$j9T$I1ixbmfv7.FfGXxzMVpuC0$wJhJ7ynqKt5LWsJKbWJb9TJLz0x7oNOeZXS8YYOeD.
       home_dir: /var/home/core
       shell: /bin/bash
       groups:
         - wheel
         - docker
       ssh_authorized_keys:
-        - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI2W3n+WsKUqvPQNtgqhxBj3BfOaKALh2JZ8P0KVn4P0k
+        - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGnKNJUQdGdd8jwuOoI/BHjCvxn0GEctbgVqOPn6GAzo c4rt0gr4ph3r@gmail.com
     - name: fcos-user
       password_hash: $6$pBtiDulPBTRNjxkB$GNWztgj4Ib42fnmUdW7cxUDfk9eH7RdDparNdlm0bAKimHsJN0t4wSriYLKiymME35sbei.O3UrTkSTmyt/rj0
       home_dir: /var/home/fcos-user
