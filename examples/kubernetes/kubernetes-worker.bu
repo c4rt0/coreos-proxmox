@@ -15,6 +15,9 @@ passwd:
 
 storage:
   files:
+    # IMPORTANT: Change this hostname if deploying multiple workers!
+    # Each worker must have a unique hostname (e.g., k3s-worker-1, k3s-worker-2)
+    # Otherwise, Kubernetes will think they're the same node.
     - path: /etc/hostname
       mode: 0644
       contents:
@@ -28,19 +31,11 @@ storage:
           #!/bin/bash
           set -e
           echo "Installing k3s worker node..."
-          echo "You must provide the K3S_URL and K3S_TOKEN from the control plane"
-          echo ""
-          echo "Example:"
-          echo "export K3S_URL=https://192.168.68.54:6443"
-          echo "export K3S_TOKEN=<token-from-control-plane>"
-          echo "/usr/local/bin/install-k3s-worker.sh"
-          echo ""
+          echo "Connecting to control plane at https://192.168.68.54:6443"
 
-          if [ -z "$K3S_URL" ] || [ -z "$K3S_TOKEN" ]; then
-            echo "Error: K3S_URL and K3S_TOKEN environment variables must be set"
-            exit 1
-          fi
-
+          # Set up environment for automatic join
+          export K3S_URL="https://192.168.68.54:6443"
+          export K3S_TOKEN="proxmox-k3s-default-token"
           export INSTALL_K3S_EXEC="agent"
 
           # Download and install k3s
@@ -50,7 +45,7 @@ storage:
           systemctl start k3s-agent.service
 
           echo "k3s worker node installed successfully"
-          echo "Node will join the cluster once k3s starts"
+          echo "Worker has joined the cluster"
 
     # Networking - DHCP configuration
     - path: /etc/NetworkManager/system-connections/ens18.nmconnection
@@ -71,7 +66,6 @@ storage:
 
 systemd:
   units:
-    # Enable IP forwarding for Kubernetes networking
     - name: k3s-network-setup.service
       enabled: true
       contents: |
@@ -82,6 +76,22 @@ systemd:
         Type=oneshot
         ExecStart=/usr/sbin/sysctl -w net.ipv4.ip_forward=1
         ExecStart=/usr/sbin/sysctl -w net.ipv4.conf.all.forwarding=1
+        RemainAfterExit=yes
+
+        [Install]
+        WantedBy=multi-user.target
+
+    - name: k3s-worker-install.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Install and join k3s worker to cluster
+        After=network-online.target
+        Wants=network-online.target
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/local/bin/install-k3s-worker.sh
         RemainAfterExit=yes
 
         [Install]

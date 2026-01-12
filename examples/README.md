@@ -8,10 +8,10 @@ This directory contains example Ignition (Butane) configurations for various too
 
 Lightweight, production-grade Kubernetes cluster setup with control plane and worker nodes.
 
-- Control plane configuration
-- Worker node configuration  
-- Token-based cluster joining
-- Full deployment guide
+- Control plane configuration with static IP
+- Worker node configuration with automatic cluster joining
+- Full deployment and verification guide
+- **[Usage examples guide](./kubernetes/KUBERNETES_USAGE.md)** - Practical examples of deploying applications
 
 ### [nginx](./nginx/)
 
