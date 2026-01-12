@@ -15,14 +15,13 @@ passwd:
       ssh_authorized_keys:
         - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGnKNJUQdGdd8jwuOoI/BHjCvxn0GEctbgVqOPn6GAzo c4rt0gr4ph3r@gmail.com
     - name: fcos-user
+      # Password: coreos
       password_hash: $6$pBtiDulPBTRNjxkB$GNWztgj4Ib42fnmUdW7cxUDfk9eH7RdDparNdlm0bAKimHsJN0t4wSriYLKiymME35sbei.O3UrTkSTmyt/rj0
       home_dir: /var/home/fcos-user
       shell: /bin/bash
       groups:
         - wheel
         - docker
-
-hostname: fcos-postgresql
 
 systemd:
   units:
@@ -61,7 +60,7 @@ systemd:
           --name postgresql-server \
           --rm \
           -e POSTGRES_PASSWORD=postgres_secure_password_change_me \
-          -e POSTGRES_INITDB_ARGS=-c shared_buffers=256MB -c max_connections=200 \
+          -e "POSTGRES_INITDB_ARGS=--data-checksums" \
           -v /var/lib/postgresql/data:/var/lib/postgresql/data:z \
           -v /var/run/postgresql:/var/run/postgresql:z \
           -p 5432:5432 \
@@ -102,6 +101,30 @@ systemd:
 
 storage:
   files:
+    # IMPORTANT: Change this hostname if deploying multiple PostgreSQL instances!
+    # Each instance must have a unique hostname.
+    - path: /etc/hostname
+      mode: 0644
+      contents:
+        inline: fcos-postgresql
+
+    # Networking - DHCP configuration
+    # To get your interface name use `ip link`
+    - path: /etc/NetworkManager/system-connections/ens18.nmconnection
+      mode: 0600
+      contents:
+        inline: |
+          [connection]
+          id=ens18
+          type=ethernet
+          interface-name=ens18
+
+          [ipv4]
+          method=auto
+
+          [ipv6]
+          method=ignore
+
     - path: /etc/motd
       mode: 0644
       contents:

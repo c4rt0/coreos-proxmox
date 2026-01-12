@@ -12,6 +12,7 @@ passwd:
       ssh_authorized_keys:
         - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGnKNJUQdGdd8jwuOoI/BHjCvxn0GEctbgVqOPn6GAzo c4rt0gr4ph3r@gmail.com
     - name: fcos-user
+      # Password: coreos
       password_hash: $6$pBtiDulPBTRNjxkB$GNWztgj4Ib42fnmUdW7cxUDfk9eH7RdDparNdlm0bAKimHsJN0t4wSriYLKiymME35sbei.O3UrTkSTmyt/rj0
       home_dir: /var/home/fcos-user
       shell: /bin/bash
@@ -41,8 +42,8 @@ systemd:
         # Create persistent storage directories
         ExecStartPre=/bin/bash -c 'mkdir -p /var/www/html /etc/nginx/conf.d'
 
-        # Start nginx container with port mapping and volume mounts
-        # HTTP (80) and HTTPS (443) mapped to host
+        # Start nginx container with volume mounts
+        # Uses host networking - ports 80 and 443 are directly accessible
         # /var/www/html for website content
         # /etc/nginx/conf.d for custom configurations
         ExecStart=/usr/bin/podman run \
@@ -50,8 +51,6 @@ systemd:
           --network host \
           -v /var/www/html:/usr/share/nginx/html:ro \
           -v /etc/nginx/conf.d:/etc/nginx/conf.d:ro \
-          -p 80:80 \
-          -p 443:443 \
           docker.io/library/nginx:latest
 
         ExecStop=/usr/bin/podman stop -t 10 nginx-server
@@ -94,11 +93,30 @@ storage:
           Website content location: /var/www/html/
           nginx config location: /etc/nginx/conf.d/
 
+    # IMPORTANT: Change this hostname if deploying multiple nginx instances!
+    # Each instance must have a unique hostname.
     - path: /etc/hostname
       mode: 0644
       overwrite: true
       contents:
         inline: fcos-nginx
+
+    # Networking - DHCP configuration
+    # To get your interface name use `ip link`
+    - path: /etc/NetworkManager/system-connections/ens18.nmconnection
+      mode: 0600
+      contents:
+        inline: |
+          [connection]
+          id=ens18
+          type=ethernet
+          interface-name=ens18
+
+          [ipv4]
+          method=auto
+
+          [ipv6]
+          method=ignore
 
     - path: /etc/profile.d/nginx-info.sh
       mode: 0644

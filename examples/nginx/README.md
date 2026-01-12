@@ -2,6 +2,15 @@
 
 This directory contains Ignition configuration for running a containerized nginx web server on Fedora CoreOS with automatic startup and persistent storage.
 
+## Default Login Credentials
+
+| User | Authentication | Details |
+|------|----------------|---------|
+| `core` | SSH key only | Primary admin user (use your SSH key) |
+| `fcos-user` | Password: `coreos` | Alternative user for console/password login |
+
+Both users have `sudo` access via the `wheel` group.
+
 ## Overview
 
 This configuration provides:

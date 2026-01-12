@@ -8,6 +8,15 @@ k3s is a lightweight, production-grade Kubernetes distribution that runs perfect
 - **`kubernetes-worker.bu`** - Worker node configuration
 - **`KUBERNETES_USAGE.md`** - Practical examples and usage guide (start here after setup!)
 
+## Default Login Credentials
+
+| User | Authentication | Details |
+|------|----------------|---------|
+| `core` | SSH key only | Primary admin user (use your SSH key) |
+| `fcos-user` | Password: `coreos` | Alternative user for console/password login |
+
+Both users have `sudo` access via the `wheel` group.
+
 ## Architecture
 
 ```

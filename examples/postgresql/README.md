@@ -2,6 +2,26 @@
 
 This directory contains Ignition configuration for running PostgreSQL database server on Fedora CoreOS with persistent storage, automatic initialization, and comprehensive database management.
 
+## Default Login Credentials
+
+### System Users
+
+| User | Authentication | Details |
+|------|----------------|---------|
+| `core` | SSH key only | Primary admin user (use your SSH key) |
+| `fcos-user` | Password: `coreos` | Alternative user for console/password login |
+
+Both users have `sudo` access via the `wheel` group.
+
+### PostgreSQL Users
+
+| User | Password | Database |
+|------|----------|----------|
+| `postgres` | `postgres_secure_password_change_me` | Superuser |
+| `app_user` | `app_password_change_me` | `app_db` |
+
+**Warning:** Change these passwords before production use!
+
 ## Overview
 
 This configuration provides:
