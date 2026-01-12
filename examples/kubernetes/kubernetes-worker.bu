@@ -31,23 +31,43 @@ storage:
           echo "You must provide the K3S_URL and K3S_TOKEN from the control plane"
           echo ""
           echo "Example:"
-          echo "export K3S_URL=https://192.168.1.100:6443"
+          echo "export K3S_URL=https://192.168.68.54:6443"
           echo "export K3S_TOKEN=<token-from-control-plane>"
           echo "/usr/local/bin/install-k3s-worker.sh"
           echo ""
-          
+
           if [ -z "$K3S_URL" ] || [ -z "$K3S_TOKEN" ]; then
             echo "Error: K3S_URL and K3S_TOKEN environment variables must be set"
             exit 1
           fi
-          
+
           export INSTALL_K3S_EXEC="agent"
-          
+
           # Download and install k3s
           curl -sfL https://get.k3s.io | sh -
-          
+
+          # Ensure k3s-agent service is started
+          systemctl start k3s-agent.service
+
           echo "k3s worker node installed successfully"
           echo "Node will join the cluster once k3s starts"
+
+    # Networking - DHCP configuration
+    - path: /etc/NetworkManager/system-connections/ens18.nmconnection
+      mode: 0600
+      contents:
+        inline: |
+          [connection]
+          id=ens18
+          type=ethernet
+          # to get your interface name use `ip link`
+          interface-name=ens18
+
+          [ipv4]
+          method=auto
+
+          [ipv6]
+          method=ignore
 
 systemd:
   units:
@@ -57,35 +77,12 @@ systemd:
       contents: |
         [Unit]
         Description=Setup networking for Kubernetes
-        Before=k3s-agent.service
 
         [Service]
         Type=oneshot
         ExecStart=/usr/sbin/sysctl -w net.ipv4.ip_forward=1
         ExecStart=/usr/sbin/sysctl -w net.ipv4.conf.all.forwarding=1
         RemainAfterExit=yes
-
-        [Install]
-        WantedBy=multi-user.target
-
-    # k3s worker agent
-    - name: k3s-agent.service
-      enabled: false
-      contents: |
-        [Unit]
-        Description=k3s Kubernetes Worker Agent
-        After=network-online.target
-        Wants=network-online.target
-
-        [Service]
-        Type=notify
-        ExecStart=/usr/local/bin/k3s agent
-        Restart=always
-        RestartSec=5
-        StandardOutput=journal
-        StandardError=journal
-        Environment="K3S_URL=${K3S_URL}"
-        Environment="K3S_TOKEN=${K3S_TOKEN}"
 
         [Install]
         WantedBy=multi-user.target
