@@ -1,6 +1,6 @@
 # Fedora CoreOS Automated VM Setup for Proxmox
 
-This project provides an automated script to deploy Fedora CoreOS virtual machines on Proxmox VE with minimal manual intervention.
+This project provides an automated script to deploy Fedora CoreOS virtual machines on Proxmox VE with pre-configured services and minimal manual intervention.
 
 ## Overview
 
@@ -10,17 +10,27 @@ The `setup-coreos.sh` script automates the entire process of creating a Fedora C
 - Creating and configuring the VM with proper UEFI boot
 - Automatically assigning available VM IDs starting from 420
 
+**Plus:** Ready-to-use example configurations for [Kubernetes clusters](#kubernetes-with-k3s), [nginx web servers](#nginx-web-server), and [PostgreSQL databases](#postgresql-database)!
+
 ## Features
 
+### Core Features
 - **Automatic Dependency Installation**: Prompts to install missing tools (butane, curl, python3) if not present
 - **Automatic VMID Assignment**: Finds the next available VMID starting from 420
 - **Latest CoreOS Image**: Downloads the latest stable Fedora CoreOS QCOW2 image
 - **Ignition Configuration**: Uses Butane to generate Ignition configs for automated provisioning
 - **Pre-configured Users**:
-  - `core`: Default CoreOS user with SSH key authentication and password `coreos`
+  - `core`: Default CoreOS user with SSH key authentication
   - `fcos-user`: Admin user with sudo access and password `coreos`
 - **Dynamic Hostname**: Each VM gets a unique hostname based on its VMID (e.g., `fcos-420`, `fcos-421`)
 - **UEFI Boot**: Configured with OVMF BIOS for modern boot support
+
+### Ready-to-Deploy Examples
+- **Kubernetes Cluster (k3s)**: Multi-node cluster with automatic worker joining
+- **nginx Web Server**: Containerized with persistent storage and host networking
+- **PostgreSQL Database**: Containerized with automatic initialization and health checks
+
+All examples include comprehensive documentation and follow production best practices.
 
 ## Prerequisites
 
@@ -62,6 +72,8 @@ The script must run on a **Proxmox VE host**. It will automatically offer to ins
 
 ## Usage
 
+### Basic Deployment
+
 Run the script on your Proxmox host:
 
 ```bash
@@ -71,9 +83,29 @@ Run the script on your Proxmox host:
 The script will:
 1. Find the next available VMID (starting from 420)
 2. Download Fedora CoreOS if not already present
-3. Generate the Ignition configuration
+3. Generate the Ignition configuration from `ignition/ignition.bu`
 4. Create and configure the VM
 5. Start the VM automatically
+
+### Using Example Configurations
+
+To deploy pre-configured services, copy an example to `ignition/ignition.bu` before running the setup script:
+
+```bash
+# Deploy a Kubernetes control plane
+cp examples/kubernetes/kubernetes-control-plane.bu ignition/ignition.bu
+./setup-coreos.sh
+
+# Or deploy nginx
+cp examples/nginx/nginx.bu ignition/ignition.bu
+./setup-coreos.sh
+
+# Or deploy PostgreSQL
+cp examples/postgresql/postgresql.bu ignition/ignition.bu
+./setup-coreos.sh
+```
+
+See the [Example Configurations](#example-configurations) section below for detailed information.
 
 ## Default Configuration
 
@@ -101,12 +133,95 @@ ssh core@<VM_IP>
 
 ```
 .
-├── setup-coreos.sh        # Main setup script
+├── setup-coreos.sh           # Main setup script
 ├── ignition/
-│   └── ignition.bu            # Butane configuration file
-├── .gitignore                 # Git ignore rules (excludes *.ign files)
-└── README.md                  # This file
+│   └── ignition.bu           # Butane configuration file (copy examples here)
+├── examples/                 # Pre-built example configurations
+│   ├── README.md             # Examples overview
+│   ├── kubernetes/           # Kubernetes cluster with k3s
+│   │   ├── kubernetes-control-plane.bu
+│   │   ├── kubernetes-worker.bu
+│   │   ├── README.md
+│   │   └── KUBERNETES_USAGE.md
+│   ├── nginx/                # nginx web server
+│   │   ├── nginx.bu
+│   │   └── README.md
+│   └── postgresql/           # PostgreSQL database
+│       ├── postgresql.bu
+│       └── README.md
+├── .gitignore                # Git ignore rules
+└── README.md                 # This file
 ```
+
+## Example Configurations
+
+The `examples/` directory contains production-ready Butane configurations for common services. Each example includes detailed setup instructions and best practices.
+
+### Kubernetes with k3s
+
+Deploy a lightweight Kubernetes cluster with automatic worker joining.
+
+**Features:**
+- Control plane with static IP (192.168.68.54)
+- Workers with automatic cluster joining (no manual token copying!)
+- Comprehensive usage guide with practical examples
+
+**Quick Start:**
+```bash
+# Deploy control plane
+cp examples/kubernetes/kubernetes-control-plane.bu ignition/ignition.bu
+./setup-coreos.sh
+
+# Wait ~2 minutes, then deploy worker
+cp examples/kubernetes/kubernetes-worker.bu ignition/ignition.bu
+./setup-coreos.sh
+
+# Verify cluster
+ssh core@192.168.68.54
+sudo k3s kubectl get nodes
+```
+
+**[internal k3s Documentation](examples/kubernetes/README.md)** | **[Usage Examples](examples/kubernetes/KUBERNETES_USAGE.md)**
+
+### nginx Web Server
+
+Deploy containerized nginx with persistent storage.
+
+**Features:**
+- nginx container via Podman
+- Automatic startup and health monitoring
+- Host networking for direct port access
+- Persistent storage for web content and configuration
+
+**Quick Start:**
+```bash
+cp examples/nginx/nginx.bu ignition/ignition.bu
+./setup-coreos.sh
+# Access at http://<VM_IP>
+```
+
+**[internal nginx Documentation](examples/nginx/README.md)**
+
+### PostgreSQL Database
+
+Deploy PostgreSQL with persistent storage and automatic initialization.
+
+**Features:**
+- PostgreSQL container with health checks
+- Persistent data storage
+- Automatic user and database creation
+- Pre-configured connection aliases
+
+**Quick Start:**
+```bash
+cp examples/postgresql/postgresql.bu ignition/ignition.bu
+./setup-coreos.sh
+# Connect: ssh core@<VM_IP>, then: pg-shell
+```
+
+**[internal PostgreSQL Documentation](examples/postgresql/README.md)**
+
+---
 
 ## Customization
 
