@@ -275,6 +275,11 @@ To list all CoreOS VMs:
 qm list | grep fcos
 ```
 
+To remove multiple VM's:
+```
+for vmid in {420..428}; do qm stop $vmid 2>/dev/null; qm destroy $vmid 2>/dev/null; done; echo "Done"
+```
+
 ## License
 
 This project is provided as-is for educational and automation purposes.
