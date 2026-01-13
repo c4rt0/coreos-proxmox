@@ -1,9 +1,6 @@
 variant: fcos
 version: 1.6.0
 
-metadata:
-  label: postgresql-database
-
 passwd:
   users:
     - name: core
@@ -91,10 +88,7 @@ systemd:
         ExecStartPre=/bin/bash -c 'for i in {1..30}; do podman exec postgresql-server pg_isready -U postgres && break; sleep 1; done'
 
         # Create application user and database
-        ExecStart=/bin/bash -c '\
-          podman exec postgresql-server psql -U postgres -c "CREATE USER app_user WITH PASSWORD '\''app_password_change_me'\''; CREATE DATABASE app_db OWNER app_user;" || true; \
-          touch /var/lib/postgresql/data/initialized
-        '
+        ExecStart=/bin/bash -c 'podman exec postgresql-server psql -U postgres -c "CREATE USER app_user WITH PASSWORD '\''app_password_change_me'\''; CREATE DATABASE app_db OWNER app_user;" || true; touch /var/lib/postgresql/data/initialized'
 
         [Install]
         WantedBy=multi-user.target
@@ -105,6 +99,7 @@ storage:
     # Each instance must have a unique hostname.
     - path: /etc/hostname
       mode: 0644
+      overwrite: true
       contents:
         inline: fcos-postgresql
 
@@ -127,6 +122,7 @@ storage:
 
     - path: /etc/motd
       mode: 0644
+      overwrite: true
       contents:
         inline: |
           Welcome to Fedora CoreOS with PostgreSQL

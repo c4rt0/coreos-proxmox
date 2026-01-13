@@ -243,16 +243,24 @@ Change the initial `VMID` value in the script (default is 420).
 
 ## Troubleshooting
 
-### VM fails to start
+For detailed troubleshooting information, see **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**.
+
+### Quick Reference
+
+**VM enters emergency mode:**
+- Most likely cause: Missing `overwrite: true` in butane config for system files
+- See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#emergency-mode-missing-overwrite-true-in-butane-files) for details
+
+**VM fails to start:**
 - Check that the storage pool has enough space
 - Verify UEFI/OVMF is available on your Proxmox host
 
-### Cannot login
+**Cannot login:**
 - Wait at least 60 seconds for Ignition to complete first boot provisioning
-- Check VM console: `qm terminal <VMID>`
+- Access VM console via Proxmox web UI (Console tab)
 - Verify the Ignition config was applied: check `/var/lib/vz/snippets/vm-<VMID>-ignition.ign`
 
-### Image download fails
+**Image download fails:**
 - Check internet connectivity
 - Verify the Fedora CoreOS build server is accessible
 - Try manually downloading from: https://builds.coreos.fedoraproject.org/

@@ -110,7 +110,7 @@ get_custom_hostname() {
     local default_hostname="$1"
     local custom_hostname
 
-    echo ""
+    echo "" >&2
     read -p "Enter hostname (or press Enter for default '$default_hostname'): " custom_hostname
 
     # If empty, use default
