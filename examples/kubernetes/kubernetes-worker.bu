@@ -31,10 +31,10 @@ storage:
           #!/bin/bash
           set -e
           echo "Installing k3s worker node..."
-          echo "Connecting to control plane at https://192.168.68.54:6443"
+          echo "Connecting to control plane at https://CONTROL_PLANE_IP:6443"
 
           # Set up environment for automatic join
-          export K3S_URL="https://192.168.68.54:6443"
+          export K3S_URL="https://CONTROL_PLANE_IP:6443"
           export K3S_TOKEN="proxmox-k3s-default-token"
           export INSTALL_K3S_EXEC="agent"
 

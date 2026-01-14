@@ -179,6 +179,54 @@ apply_hostname_to_config() {
     fi
 }
 
+# Function to detect VM IP address via QEMU guest agent
+detect_vm_ip() {
+    local vmid="$1"
+    local max_attempts="${2:-60}"
+    local attempt=0
+
+    echo "Waiting for VM $vmid to boot and get IP address (max ${max_attempts}s)..." >&2
+
+    while [ $attempt -lt $max_attempts ]; do
+        # Try to get network interfaces from guest agent
+        local ip=$(qm guest cmd "$vmid" network-get-interfaces 2>/dev/null | \
+                   grep -oP '"ip-address"\s*:\s*"\K[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | \
+                   grep -v "127.0.0.1" | head -1)
+
+        if [ -n "$ip" ]; then
+            echo "VM $vmid received IP: $ip" >&2
+            echo "$ip"
+            return 0
+        fi
+
+        attempt=$((attempt + 1))
+        sleep 1
+    done
+
+    echo "Error: Could not detect IP for VM $vmid after ${max_attempts}s" >&2
+    echo "The VM may not have booted yet or qemu-guest-agent may not be running" >&2
+    return 1
+}
+
+# Function to inject control plane IP into kubernetes worker config
+inject_control_plane_ip() {
+    local config_file="$1"
+    local control_plane_ip="$2"
+
+    echo "Configuring worker to connect to control plane at $control_plane_ip" >&2
+
+    # Replace CONTROL_PLANE_IP placeholder with actual IP
+    sed -i "s/CONTROL_PLANE_IP/$control_plane_ip/g" "$config_file"
+
+    # Verify the replacement
+    if grep -q "https://$control_plane_ip:6443" "$config_file"; then
+        return 0
+    else
+        echo "Error: Failed to update control plane IP in $config_file" >&2
+        return 1
+    fi
+}
+
 # Function to install missing dependencies
 install_dependencies() {
     local missing_deps=()
@@ -259,6 +307,8 @@ if [ "$CONFIG_TYPE" = "k8s-cluster" ]; then
 
     echo "  - $K8S_WORKER_COUNT Worker node(s) (k3s-worker-1, k3s-worker-2, ...)"
     echo ""
+    echo "Note: Control plane will be created first, then workers will join using its DHCP IP"
+    echo ""
     read -p "Continue with cluster creation? (y/N): " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -299,7 +349,7 @@ echo "Configuration Summary:"
 echo "  Type: $CONFIG_TYPE"
 if [ "$CONFIG_TYPE" = "k8s-cluster" ]; then
     echo "  Total VMs: $TOTAL_VMS (1 control plane + $K8S_WORKER_COUNT workers)"
-    echo "  Control Plane: k3s-control-plane"
+    echo "  Control Plane: k3s-control-plane (IP will be detected via DHCP)"
     echo "  Workers: k3s-worker-1 through k3s-worker-$K8S_WORKER_COUNT"
 else
     echo "  Hostname: $VM_NAME"
@@ -432,6 +482,11 @@ for ((vm_index=1; vm_index<=TOTAL_VMS; vm_index++)); do
     # Apply hostname to this VM's configuration
     apply_hostname_to_config "$IGNITION_SOURCE" "$VM_NAME"
 
+    # For Kubernetes workers, inject the control plane IP
+    if [ "$CONFIG_TYPE" = "k8s-cluster" ] && [ "$vm_index" -gt 1 ]; then
+        inject_control_plane_ip "$IGNITION_SOURCE" "$K8S_CONTROL_PLANE_IP"
+    fi
+
     # Convert Butane -> Ignition
     echo "Converting Butane config to Ignition..."
     if ! butane --pretty --strict "$IGNITION_SOURCE" > "$IGNITION_DIR/ignition.ign"; then
@@ -461,7 +516,8 @@ for ((vm_index=1; vm_index<=TOTAL_VMS; vm_index++)); do
         --cpu host \
         --machine q35 \
         --bios ovmf \
-        --net0 virtio,bridge="$BRIDGE"
+        --net0 virtio,bridge="$BRIDGE" \
+        --agent 1
 
     # Set SCSI controller first (before adding disks)
     qm set "$VMID" --scsihw virtio-scsi-pci
@@ -506,6 +562,20 @@ for ((vm_index=1; vm_index<=TOTAL_VMS; vm_index++)); do
         CREATED_VMIDS+=("$VMID")
         CREATED_VMNAMES+=("$VM_NAME")
 
+        # For Kubernetes control plane, wait for IP and store it
+        if [ "$CONFIG_TYPE" = "k8s-cluster" ] && [ "$vm_index" -eq 1 ]; then
+            echo ""
+            echo "Detecting control plane IP address..."
+            echo "Note: First boot installs qemu-guest-agent, this may take 2-3 minutes..."
+            K8S_CONTROL_PLANE_IP=$(detect_vm_ip "$VMID" 180)
+            if [ $? -ne 0 ] || [ -z "$K8S_CONTROL_PLANE_IP" ]; then
+                echo "Error: Failed to detect control plane IP address"
+                echo "Workers will not be able to join the cluster"
+                exit 1
+            fi
+            echo "Control plane IP: $K8S_CONTROL_PLANE_IP"
+        fi
+
         echo ""
     else
         echo "Error: Failed to start VM $VM_NAME (ID $VMID)"
@@ -534,9 +604,9 @@ echo "  3. SSH into a VM: ssh core@<VM_IP>"
 echo ""
 if [ "$CONFIG_TYPE" = "k8s-cluster" ]; then
     echo "Kubernetes Cluster Setup:"
-    echo "  - Control plane is k3s-control-plane (${CREATED_VMIDS[0]})"
-    echo "  - Workers will automatically join the control plane"
-    echo "  - Once all nodes are up, check cluster: ssh core@<control-plane-ip> 'sudo kubectl get nodes'"
+    echo "  - Control plane: k3s-control-plane (${CREATED_VMIDS[0]}) at $K8S_CONTROL_PLANE_IP"
+    echo "  - Workers configured to join control plane at $K8S_CONTROL_PLANE_IP:6443"
+    echo "  - Once all nodes are up, check cluster: ssh core@$K8S_CONTROL_PLANE_IP 'sudo kubectl get nodes'"
     echo ""
 fi
 echo "To monitor a VM: qm terminal <VMID>"
